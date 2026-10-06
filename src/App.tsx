@@ -199,7 +199,12 @@ export default function App() {
         return;
       }
 
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ 
+        apiKey,
+        httpOptions: {
+          apiVersion: 'v1alpha'
+        }
+      });
       const prompt = `You are answering a voicemail as the persona: "${contact.name}".
 Character details: "${contact.personaDescription || 'A helpful person.'}".
 Provide a short, immersive character-consistent voicemail message (approx 30-50 words) telling them you are busy and missed their proactive call check-in.

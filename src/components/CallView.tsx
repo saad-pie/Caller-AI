@@ -70,7 +70,12 @@ export default function CallView({ target, onEndCall, direction = 'outbound' }: 
         throw new Error("No Gemini API key defined");
       }
 
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ 
+        apiKey,
+        httpOptions: {
+          apiVersion: 'v1alpha'
+        }
+      });
       const prompt = `You are answering a voicemail as the persona: "${characterName}". 
 Character details: "${personaDesc}".
 Provide a short, immersive, and highly realistic character voicemail message (approx 40-75 words). 
@@ -1106,9 +1111,15 @@ ${aiContact.personaDescription}
           )}
 
           {showCaptions && aiCaption && (
-             <div className="absolute inset-x-8 bottom-6 z-30 flex justify-center pointer-events-none">
-               <div className="bg-black/70 backdrop-blur-md text-white/90 px-5 py-3 rounded-2xl max-w-sm w-full text-center shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500">
-                 <p className="text-[15px] font-medium leading-snug">"{aiCaption}"</p>
+             <div className="absolute inset-x-6 bottom-6 z-30 flex justify-center pointer-events-none">
+               <div className={`${
+                 aiCaption.toLowerCase().includes('error') || aiCaption.toLowerCase().includes('denied')
+                   ? 'bg-rose-900/90 border border-rose-500/40 text-rose-100'
+                   : 'bg-black/70 backdrop-blur-md text-white/90'
+               } px-5 py-3 rounded-2xl max-w-sm w-full text-center shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500`}>
+                 <p className="text-[13px] font-medium leading-snug">
+                   {aiCaption.startsWith('[') || aiCaption.toLowerCase().includes('error') ? aiCaption : `"${aiCaption}"`}
+                 </p>
                </div>
              </div>
           )}

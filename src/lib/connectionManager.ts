@@ -28,7 +28,19 @@ export class LiveConnectionManager {
       this.updateState('failed', "Missing API key");
       throw new Error("Missing GEMINI_API_KEY");
     }
-    this.ai = new GoogleGenAI({ apiKey });
+
+    // Modern "Authorization Keys" (AQ.Ab...) from Google AI Studio require ephemeral token handling in the SDK.
+    // We prefix them with 'auth_tokens/' so the SDK uses 'access_token' instead of 'key' in the WebSocket URL.
+    const effectiveApiKey = apiKey.startsWith('AQ.') && !apiKey.startsWith('auth_tokens/') 
+      ? `auth_tokens/${apiKey}` 
+      : apiKey;
+
+    this.ai = new GoogleGenAI({ 
+      apiKey: effectiveApiKey,
+      httpOptions: {
+        apiVersion: 'v1alpha'
+      }
+    });
     this.config = config;
     this.callbacks = callbacks;
     this.onStateChange = onStateChange;
@@ -102,11 +114,33 @@ export class LiveConnectionManager {
       return;
     }
 
+    const rawMsg = error && error.message ? error.message : "Connection lost";
+    const lower = rawMsg.toLowerCase();
+
+    // Check for OAuth / credential type mismatch
+    if (lower.includes("oauth 2") || lower.includes("authentication credentials") || lower.includes("expected oauth")) {
+      console.error("[ConnectionManager] Invalid credential type from Google API:", rawMsg);
+      this.updateState(
+        'failed',
+        "Invalid API Key: Google Live API requires a standard Google AI Studio API key (starting with 'AIza...'). Tokens starting with 'AQ.' are OAuth credentials and are not accepted."
+      );
+      return;
+    }
+
+    // Check for unrecoverable errors from Google Live API
+    if (lower.includes("denied access") || lower.includes("contact support") || lower.includes("permission") || lower.includes("forbidden") || lower.includes("unauthorized")) {
+      console.error("[ConnectionManager] Unrecoverable error from Google API:", rawMsg);
+      this.updateState(
+        'failed', 
+        "Google API Error: Your project has been denied access. Please verify your Google Cloud / AI Studio project status or generate a new API key without domain restrictions."
+      );
+      return;
+    }
+
     if (this.retryCount < this.maxRetries) {
       const delay = this.backoffDelays[this.retryCount];
       this.retryCount++;
-      const errMsg = error && error.message ? error.message : "Connection lost";
-      this.updateState('reconnecting', `${errMsg}. Retrying...`);
+      this.updateState('reconnecting', `${rawMsg}.. Retrying...`);
       setTimeout(() => this.attemptConnection(), delay);
     } else {
       this.updateState('failed', "Connection failed after maximum retries. Please check your network or API key.");
