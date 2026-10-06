@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Health Check ---
+    match /_health_check_/{docId} {
+      allow read: if true;
+    }
+
+    // --- User Profiles ---
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUserProfile(incoming());
+      allow update: if isOwner(userId) && isValidUserProfile(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'number', 'photoUrl', 'globalPromptEnabled', 'globalPrompt', 'privacySettings', 'lastCheckIn', 'credits'])
+      );
+
+      function isValidUserProfile(data) {
+        return data.uid == userId &&
+               data.name is string && data.name.size() <= 100 &&
+               data.credits is number;
+      }
+
+      // --- Private Contacts ---
+      match /contacts/{contactId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(contactId) && isValidContact(incoming());
+        allow update: if isOwner(userId) && isValidContact(incoming());
+        allow delete: if isOwner(userId);
+
+        function isValidContact(data) {
+          return data.userId == userId &&
+                 data.name is string && data.name.size() <= 100 &&
+                 data.isAI is bool;
+        }
+      }
+
+      // --- Call History ---
+      match /calls/{callId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(callId) && isValidCall(incoming());
+        allow delete: if isOwner(userId);
+
+        function isValidCall(data) {
+          return data.userId == userId &&
+                 data.number is string &&
+                 data.timestamp is number;
+        }
+      }
+
+      // --- Recordings ---
+      match /recordings/{recordingId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(recordingId) && isValidRecording(incoming());
+        allow delete: if isOwner(userId);
+
+        function isValidRecording(data) {
+          return data.userId == userId &&
+                 data.callId is string;
+        }
+      }
+
+      // --- Voicemails ---
+      match /voicemails/{voicemailId} {
+        allow list, get, create, delete: if isOwner(userId);
+      }
+    }
+
+    // --- Community Contacts ---
+    match /community/{contactId} {
+      allow list: if true;
+      allow get: if true;
+      allow create: if isSignedIn() && isValidId(contactId) && isValidCommunityContact(incoming());
+      allow update: if isSignedIn() && (
+        // Case A: The creator is updating their character
+        (existing().creatorId == request.auth.uid && isValidCommunityContact(incoming()) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'name', 'personaDescription', 'voice', 'photoUrl'])) ||
+        // Case B: Any logged-in user is incrementing/decrementing likes
+        (incoming().diff(existing()).affectedKeys().hasOnly(['likes']) && 
+         incoming().likes is number &&
+         incoming().creatorId == existing().creatorId &&
+         incoming().name == existing().name)
+      );
+      allow delete: if isSignedIn() && existing().creatorId == request.auth.uid;
+
+      function isValidCommunityContact(data) {
+        return data.creatorId == request.auth.uid &&
+               data.name is string && data.name.size() <= 100 &&
+               data.personaDescription is string && data.personaDescription.size() <= 5000;
+      }
+    }
+  }
+}

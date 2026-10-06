@@ -1,0 +1,134 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user profile information, settings, and credit balance.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User's unique identifier" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "number": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "credits": { "type": "number", "description": "Remaining call credits" },
+        "globalPromptEnabled": { "type": "boolean" },
+        "globalPrompt": { "type": "string" },
+        "privacySettings": {
+          "type": "object",
+          "properties": {
+            "shareActivity": { "type": "boolean" },
+            "anonymousMode": { "type": "boolean" }
+          }
+        },
+        "lastCheckIn": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "credits"]
+    },
+    "Contact": {
+      "title": "Contact",
+      "description": "A contact (human or AI) belonging to a user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string", "description": "The owner of this contact" },
+        "name": { "type": "string" },
+        "number": { "type": "string" },
+        "isAI": { "type": "boolean" },
+        "personaDescription": { "type": "string" },
+        "voice": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "proactiveSchedule": { "type": "string" },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "sendMessageEnabled": { "type": "boolean" },
+            "googleSearchEnabled": { "type": "boolean" },
+            "recordingEnabled": { "type": "boolean" }
+          }
+        }
+      },
+      "required": ["userId", "name", "isAI"]
+    },
+    "CommunityContact": {
+      "title": "Community Contact",
+      "description": "AI personas contributed by the community.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "name": { "type": "string" },
+        "number": { "type": "string" },
+        "personaDescription": { "type": "string" },
+        "voice": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "likes": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["creatorId", "name", "personaDescription"]
+    },
+    "CallRecord": {
+      "title": "Call Record",
+      "description": "Information about a specific call.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "contactId": { "type": "string" },
+        "contactName": { "type": "string" },
+        "number": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "duration": { "type": "number" },
+        "type": { "type": "string", "enum": ["missed", "outgoing", "incoming"] },
+        "recordingId": { "type": "string" }
+      },
+      "required": ["userId", "number", "timestamp", "type"]
+    },
+    "Recording": {
+      "title": "Recording",
+      "description": "Call audio recordings and transcripts.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "callId": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "transcript": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "speaker": { "type": "string" },
+              "text": { "type": "string" },
+              "timestamp": { "type": "number" }
+            }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "callId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document."
+    },
+    "/users/{userId}/contacts/{contactId}": {
+      "schema": "Contact",
+      "description": "Private contacts for a user."
+    },
+    "/community": {
+      "schema": "CommunityContact",
+      "description": "Public AI personas."
+    },
+    "/users/{userId}/calls/{callId}": {
+      "schema": "CallRecord",
+      "description": "Call history for a user."
+    },
+    "/users/{userId}/recordings/{recordingId}": {
+      "schema": "Recording",
+      "description": "Recordings for a user."
+    }
+  }
+}

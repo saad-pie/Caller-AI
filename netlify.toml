@@ -1,0 +1,17 @@
+[build]
+  command = "npm install && npm run build"
+  publish = "dist"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+
+# Timeout configuration for Netlify functions (requires Pro tier for >10s, max 26s)
+[functions."*"]
+  timeout = 25

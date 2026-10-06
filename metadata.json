@@ -1,0 +1,8 @@
+{
+  "name": "Caller AI",
+  "description": "Phone dialer with real-time Gemini Live AI voices.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
