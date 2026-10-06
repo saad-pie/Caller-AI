@@ -82,7 +82,11 @@ export default function AuthView() {
         });
       }
     } catch (err: any) {
-      setError(err.message);
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request' || err.code === 'auth/popup-blocked') {
+        setError("Google sign-in popup was closed or blocked by browser security. Please use Email & Password sign-in below.");
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }

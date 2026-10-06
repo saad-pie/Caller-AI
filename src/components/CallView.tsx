@@ -78,7 +78,7 @@ Explain briefly that you tried to call them or are currently busy (rockets, ruli
 Do NOT write any bracketed descriptions, scene setups, narrator voice overs, speaker name prefixes like "${characterName}:", or quotes. Just output the spoken characters directly.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt
       });
 
@@ -468,13 +468,17 @@ ${p?.personaDescription || "You are a helpful phone assistant."}
                    
                 };
                 
+                const useThinking = (p as any).settings?.extendedThinkingEnabled || (target as any).settings?.extendedThinkingEnabled;
+                const modelName = useThinking ? "gemini-3.8-live-extended-thinking" : "gemini-3.8-live";
+
                 const manager = new LiveConnectionManager(
                   apiKey,
                   config as any,
                   callbacks,
                   (state, msg) => {
                     if (msg) setAiCaption(msg);
-                  }
+                  },
+                  modelName
                 );
                 
                 // Save primary session
@@ -657,13 +661,17 @@ ${aiContact.personaDescription}
                
             };
             
+            const useThinking = aiContact.settings?.extendedThinkingEnabled;
+            const modelName = useThinking ? "gemini-3.8-live-extended-thinking" : "gemini-3.8-live";
+
             const manager = new LiveConnectionManager(
               apiKey,
               config as any,
               callbacks,
               (state, msg) => {
                 // Ignore state changes for secondary participants
-              }
+              },
+              modelName
             );
             
             aiConnectionsRef.current.set(aiContact.id, manager);

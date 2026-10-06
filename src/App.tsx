@@ -206,7 +206,7 @@ Provide a short, immersive character-consistent voicemail message (approx 30-50 
 Do NOT include any stage directions, narrator descriptions, prefixes, or quotes. Just output the spoken characters directly.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt
       });
 

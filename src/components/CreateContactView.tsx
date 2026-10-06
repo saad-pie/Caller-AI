@@ -23,6 +23,7 @@ export default function CreateContactView({ onNavigate, onSave, initialContact }
   const [sendMessageEnabled, setSendMessageEnabled] = useState(initialContact?.settings?.sendMessageEnabled ?? true);
   const [googleSearchEnabled, setGoogleSearchEnabled] = useState(initialContact?.settings?.googleSearchEnabled ?? true);
   const [recordingEnabled, setRecordingEnabled] = useState(initialContact?.settings?.recordingEnabled ?? true);
+  const [extendedThinkingEnabled, setExtendedThinkingEnabled] = useState(initialContact?.settings?.extendedThinkingEnabled ?? false);
   const [photoUrl, setPhotoUrl] = useState(initialContact?.photoUrl || '');
   const [isGenerating, setIsGenerating] = useState(false);
   const [inlineError, setInlineError] = useState('');
@@ -132,7 +133,8 @@ export default function CreateContactView({ onNavigate, onSave, initialContact }
         settings: {
           sendMessageEnabled,
           googleSearchEnabled,
-          recordingEnabled
+          recordingEnabled,
+          extendedThinkingEnabled
         }
       };
       
@@ -412,6 +414,12 @@ export default function CreateContactView({ onNavigate, onSave, initialContact }
                   description="Save call audio and generate transcripts automatically." 
                   enabled={recordingEnabled} 
                   onChange={setRecordingEnabled} 
+                />
+                <FeatureToggle 
+                  label="Live Extended Thinking (Gemini 3.8 Thinking)" 
+                  description="Enable advanced multi-step reasoning and thought processing during live calls." 
+                  enabled={extendedThinkingEnabled} 
+                  onChange={setExtendedThinkingEnabled} 
                 />
                 <FeatureToggle 
                   label="Publish to Character Bazaar" 

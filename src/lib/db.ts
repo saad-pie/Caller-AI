@@ -12,6 +12,7 @@ export interface Contact {
     sendMessageEnabled?: boolean;
     googleSearchEnabled?: boolean;
     recordingEnabled?: boolean;
+    extendedThinkingEnabled?: boolean;
   };
 }
 

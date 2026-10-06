@@ -14,12 +14,14 @@ export class LiveConnectionManager {
   private callbacks: any;
   private heartbeatInterval?: number;
   private isIntentionalClose = false;
+  private model: string;
 
   constructor(
     apiKey: string,
     config: LiveConnectConfig,
     callbacks: any,
-    onStateChange?: (state: ConnectionState, message?: string) => void
+    onStateChange?: (state: ConnectionState, message?: string) => void,
+    model: string = "gemini-3.8-live"
   ) {
     if (!apiKey) {
       console.error("[ConnectionManager] Missing API key");
@@ -30,6 +32,7 @@ export class LiveConnectionManager {
     this.config = config;
     this.callbacks = callbacks;
     this.onStateChange = onStateChange;
+    this.model = model;
   }
 
   private updateState(state: ConnectionState, message?: string) {
@@ -53,7 +56,7 @@ export class LiveConnectionManager {
 
     try {
       this.currentSession = await this.ai.live.connect({
-        model: "gemini-3.1-flash-live-preview",
+        model: this.model,
         config: this.config,
         callbacks: {
           onopen: () => {
