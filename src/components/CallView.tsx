@@ -474,7 +474,7 @@ ${p?.personaDescription || "You are a helpful phone assistant."}
                 };
                 
                 const useThinking = (p as any).settings?.extendedThinkingEnabled || (target as any).settings?.extendedThinkingEnabled;
-                const modelName = useThinking ? "gemini-3.8-live-extended-thinking" : "gemini-3.8-live";
+                const modelName = "gemini-3.1-flash-live-preview";
 
                 const manager = new LiveConnectionManager(
                   apiKey,
@@ -667,7 +667,7 @@ ${aiContact.personaDescription}
             };
             
             const useThinking = aiContact.settings?.extendedThinkingEnabled;
-            const modelName = useThinking ? "gemini-3.8-live-extended-thinking" : "gemini-3.8-live";
+            const modelName = "gemini-3.1-flash-live-preview";
 
             const manager = new LiveConnectionManager(
               apiKey,

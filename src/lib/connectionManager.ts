@@ -3,6 +3,7 @@ import { GoogleGenAI, LiveConnectConfig, LiveServerMessage } from "@google/genai
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
 
 export class LiveConnectionManager {
+  private rawApiKey: string;
   private ai: GoogleGenAI;
   private currentSession: any = null;
   private state: ConnectionState = 'disconnected';
@@ -21,7 +22,7 @@ export class LiveConnectionManager {
     config: LiveConnectConfig,
     callbacks: any,
     onStateChange?: (state: ConnectionState, message?: string) => void,
-    model: string = "gemini-3.8-live"
+    model: string = "gemini-3.1-flash-live-preview"
   ) {
     if (!apiKey) {
       console.error("[ConnectionManager] Missing API key");
@@ -29,14 +30,10 @@ export class LiveConnectionManager {
       throw new Error("Missing GEMINI_API_KEY");
     }
 
-    // Modern "Authorization Keys" (AQ.Ab...) from Google AI Studio require ephemeral token handling in the SDK.
-    // We prefix them with 'auth_tokens/' so the SDK uses 'access_token' instead of 'key' in the WebSocket URL.
-    const effectiveApiKey = apiKey.startsWith('AQ.') && !apiKey.startsWith('auth_tokens/') 
-      ? `auth_tokens/${apiKey}` 
-      : apiKey;
+    this.rawApiKey = apiKey.trim();
 
     this.ai = new GoogleGenAI({ 
-      apiKey: effectiveApiKey,
+      apiKey: this.rawApiKey,
       httpOptions: {
         apiVersion: 'v1alpha'
       }
@@ -67,7 +64,36 @@ export class LiveConnectionManager {
       this.retryCount > 0 ? `Reconnecting (Attempt ${this.retryCount}/${this.maxRetries})...` : "Connecting...");
 
     try {
-      this.currentSession = await this.ai.live.connect({
+      let sessionAi = this.ai;
+
+      // Modern Authorization Keys (AQ.Ab...) require obtaining an ephemeral token via CreateAuthToken
+      // before connecting to the Live WebSocket.
+      if (this.rawApiKey.startsWith('AQ.')) {
+        try {
+          console.log("[ConnectionManager] Obtaining ephemeral auth token via CreateAuthToken...");
+          const tokenResp: any = await this.ai.authTokens.create({});
+          if (tokenResp && tokenResp.name) {
+            console.log("[ConnectionManager] Ephemeral token received:", tokenResp.name);
+            sessionAi = new GoogleGenAI({
+              apiKey: tokenResp.name,
+              httpOptions: { apiVersion: 'v1alpha' }
+            });
+          }
+        } catch (tokenErr: any) {
+          console.warn("[ConnectionManager] Failed to create auth token:", tokenErr);
+          let msg = tokenErr?.message || String(tokenErr);
+          try {
+            const parsed = JSON.parse(msg);
+            if (parsed?.error?.message) msg = parsed.error.message;
+          } catch {}
+          if (msg.includes("API key not valid") || msg.includes("denied access") || msg.includes("PERMISSION_DENIED")) {
+            this.updateState('failed', `Google Auth Error: ${msg}`);
+            return;
+          }
+        }
+      }
+
+      this.currentSession = await sessionAi.live.connect({
         model: this.model,
         config: this.config,
         callbacks: {
@@ -117,12 +143,12 @@ export class LiveConnectionManager {
     const rawMsg = error && error.message ? error.message : "Connection lost";
     const lower = rawMsg.toLowerCase();
 
-    // Check for OAuth / credential type mismatch
-    if (lower.includes("oauth 2") || lower.includes("authentication credentials") || lower.includes("expected oauth")) {
-      console.error("[ConnectionManager] Invalid credential type from Google API:", rawMsg);
+    // Check for auth token errors from Google Live API
+    if (lower.includes("missing or malformed auth token") || lower.includes("createauthtoken") || lower.includes("expected oauth 2") || lower.includes("invalid authentication credentials")) {
+      console.error("[ConnectionManager] Auth token error from Google API:", rawMsg);
       this.updateState(
         'failed',
-        "Invalid API Key: Google Live API requires a standard Google AI Studio API key (starting with 'AIza...'). Tokens starting with 'AQ.' are OAuth credentials and are not accepted."
+        "Google Live API Auth Error: Ephemeral token required. Please check your GEMINI_API_KEY."
       );
       return;
     }
