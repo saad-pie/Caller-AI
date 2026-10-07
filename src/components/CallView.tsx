@@ -45,6 +45,7 @@ export default function CallView({ target, onEndCall, direction = 'outbound' }: 
   const [isSpeaker, setIsSpeaker] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [showCaptions, setShowCaptions] = useState(true);
+  const [errorCopied, setErrorCopied] = useState(false);
 
   const [ringingCountdown, setRingingCountdown] = useState(8);
   const [voicemailText, setVoicemailText] = useState('');
@@ -491,9 +492,10 @@ ${p?.personaDescription || "You are a helpful phone assistant."}
                 aiConnectionsRef.current.set(p.id!, manager);
                 await manager.connect();
 
-             } catch(e) {
-               console.error("LiveConnect err", e);
-               setAiCaption("Failed to connect live audio.");
+             } catch(e: any) {
+               console.error("[CallerAI Exact Error] LiveConnect err:", e);
+               const exactErr = e?.message || String(e);
+               setAiCaption(`Failed to connect: ${exactErr}`);
              }
           }
           connectAI();
@@ -1111,16 +1113,37 @@ ${aiContact.personaDescription}
           )}
 
           {showCaptions && aiCaption && (
-             <div className="absolute inset-x-6 bottom-6 z-30 flex justify-center pointer-events-none">
-               <div className={`${
-                 aiCaption.toLowerCase().includes('error') || aiCaption.toLowerCase().includes('denied')
-                   ? 'bg-rose-900/90 border border-rose-500/40 text-rose-100'
-                   : 'bg-black/70 backdrop-blur-md text-white/90'
-               } px-5 py-3 rounded-2xl max-w-sm w-full text-center shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500`}>
-                 <p className="text-[13px] font-medium leading-snug">
-                   {aiCaption.startsWith('[') || aiCaption.toLowerCase().includes('error') ? aiCaption : `"${aiCaption}"`}
-                 </p>
-               </div>
+             <div className="absolute inset-x-4 bottom-6 z-30 flex justify-center">
+               {aiCaption.toLowerCase().includes('error') || 
+                aiCaption.toLowerCase().includes('denied') || 
+                aiCaption.toLowerCase().includes('closed') || 
+                aiCaption.toLowerCase().includes('failed') || 
+                aiCaption.startsWith('[') ? (
+                 <div className="bg-rose-950/95 border border-rose-500/50 text-rose-100 p-4 rounded-2xl max-w-sm w-full shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 select-text pointer-events-auto">
+                   <div className="flex items-center justify-between gap-2 mb-2">
+                     <span className="text-[11px] font-bold uppercase tracking-wider text-rose-400">Connection Details</span>
+                     <button 
+                       onClick={() => {
+                         navigator.clipboard.writeText(aiCaption);
+                         setErrorCopied(true);
+                         setTimeout(() => setErrorCopied(false), 2000);
+                       }}
+                       className="text-[10px] bg-rose-900/80 hover:bg-rose-800 text-rose-200 px-2.5 py-1 rounded-lg border border-rose-700/60 font-semibold cursor-pointer transition active:scale-95"
+                     >
+                       {errorCopied ? "✓ Copied!" : "Copy Error"}
+                     </button>
+                   </div>
+                   <p className="text-[11px] font-mono leading-relaxed break-words text-rose-200 text-left bg-black/40 p-2.5 rounded-xl border border-white/5 max-h-36 overflow-y-auto">
+                     {aiCaption}
+                   </p>
+                 </div>
+               ) : (
+                 <div className="bg-black/70 backdrop-blur-md text-white/90 px-5 py-3 rounded-2xl max-w-sm w-full text-center shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500 pointer-events-none">
+                   <p className="text-[14px] font-medium leading-snug">
+                     "{aiCaption}"
+                   </p>
+                 </div>
+               )}
              </div>
           )}
         </div>

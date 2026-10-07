@@ -64,41 +64,12 @@ export class LiveConnectionManager {
       this.retryCount > 0 ? `Reconnecting (Attempt ${this.retryCount}/${this.maxRetries})...` : "Connecting...");
 
     try {
-      let sessionAi = this.ai;
-
-      // Modern Authorization Keys (AQ.Ab...) require obtaining an ephemeral token via CreateAuthToken
-      // before connecting to the Live WebSocket.
-      if (this.rawApiKey.startsWith('AQ.')) {
-        try {
-          console.log("[ConnectionManager] Obtaining ephemeral auth token via CreateAuthToken...");
-          const tokenResp: any = await this.ai.authTokens.create({});
-          if (tokenResp && tokenResp.name) {
-            console.log("[ConnectionManager] Ephemeral token received:", tokenResp.name);
-            sessionAi = new GoogleGenAI({
-              apiKey: tokenResp.name,
-              httpOptions: { apiVersion: 'v1alpha' }
-            });
-          }
-        } catch (tokenErr: any) {
-          console.warn("[ConnectionManager] Failed to create auth token:", tokenErr);
-          let msg = tokenErr?.message || String(tokenErr);
-          try {
-            const parsed = JSON.parse(msg);
-            if (parsed?.error?.message) msg = parsed.error.message;
-          } catch {}
-          if (msg.includes("API key not valid") || msg.includes("denied access") || msg.includes("PERMISSION_DENIED")) {
-            this.updateState('failed', `Google Auth Error: ${msg}`);
-            return;
-          }
-        }
-      }
-
-      this.currentSession = await sessionAi.live.connect({
+      this.currentSession = await this.ai.live.connect({
         model: this.model,
         config: this.config,
         callbacks: {
           onopen: () => {
-            console.log("[ConnectionManager] Connected to Live API");
+            console.log("[ConnectionManager] Connected to Live API with model:", this.model);
             this.updateState('connected', "AI is listening...");
             this.retryCount = 0;
             this.startHeartbeat();
@@ -108,26 +79,25 @@ export class LiveConnectionManager {
             if (this.callbacks.onmessage) this.callbacks.onmessage(msg);
           },
           onerror: (e: any) => {
-            console.error("[ConnectionManager] Connection Error:", e);
+            console.error("[CallerAI Exact Error] WebSocket onerror event:", e);
             if (this.callbacks.onerror) this.callbacks.onerror(e);
-            this.handleDisconnect(e);
+            const errDetails = e?.message || (e instanceof Event ? 'WebSocket connection failed' : JSON.stringify(e));
+            this.handleDisconnect(new Error(`[WebSocket Error]: ${errDetails}`));
           },
           onclose: (e?: any) => {
-            console.log("[ConnectionManager] Connection Closed", e ? `Code: ${e.code}, Reason: ${e.reason}` : "");
+            console.error("[CallerAI Exact Error] WebSocket onclose event:", e ? `Code: ${e.code}, Reason: ${e.reason}` : "No event data");
             if (this.callbacks.onclose) this.callbacks.onclose(e);
             
-            let errorMessage = "Connection Closed";
+            let errorMessage = `WebSocket Closed (Code ${e?.code ?? 'unknown'})`;
             if (e && e.reason) {
               errorMessage += `: ${e.reason}`;
-            } else if (e && e.code) {
-              errorMessage += ` (Code ${e.code})`;
             }
-            this.handleDisconnect(e ? new Error(errorMessage) : undefined);
+            this.handleDisconnect(new Error(errorMessage));
           }
         }
       });
     } catch (e: any) {
-      console.error("[ConnectionManager] Failed to establish connection:", e);
+      console.error("[CallerAI Exact Error] Failed to establish connection:", e);
       this.handleDisconnect(e);
     }
   }
@@ -140,37 +110,29 @@ export class LiveConnectionManager {
       return;
     }
 
-    const rawMsg = error && error.message ? error.message : "Connection lost";
+    const rawMsg = error && error.message ? error.message : (typeof error === 'string' ? error : "Connection lost");
+    console.error("[CallerAI Exact Error] Disconnect:", rawMsg, error);
+
     const lower = rawMsg.toLowerCase();
+    const isUnrecoverable = 
+      lower.includes("denied access") ||
+      lower.includes("contact support") ||
+      lower.includes("permission") ||
+      lower.includes("forbidden") ||
+      lower.includes("unauthorized") ||
+      lower.includes("api key not valid") ||
+      lower.includes("missing or malformed auth token") ||
+      lower.includes("createauthtoken failed");
 
-    // Check for auth token errors from Google Live API
-    if (lower.includes("missing or malformed auth token") || lower.includes("createauthtoken") || lower.includes("expected oauth 2") || lower.includes("invalid authentication credentials")) {
-      console.error("[ConnectionManager] Auth token error from Google API:", rawMsg);
-      this.updateState(
-        'failed',
-        "Google Live API Auth Error: Ephemeral token required. Please check your GEMINI_API_KEY."
-      );
+    if (isUnrecoverable || this.retryCount >= this.maxRetries) {
+      this.updateState('failed', rawMsg);
       return;
     }
 
-    // Check for unrecoverable errors from Google Live API
-    if (lower.includes("denied access") || lower.includes("contact support") || lower.includes("permission") || lower.includes("forbidden") || lower.includes("unauthorized")) {
-      console.error("[ConnectionManager] Unrecoverable error from Google API:", rawMsg);
-      this.updateState(
-        'failed', 
-        "Google API Error: Your project has been denied access. Please verify your Google Cloud / AI Studio project status or generate a new API key without domain restrictions."
-      );
-      return;
-    }
-
-    if (this.retryCount < this.maxRetries) {
-      const delay = this.backoffDelays[this.retryCount];
-      this.retryCount++;
-      this.updateState('reconnecting', `${rawMsg}.. Retrying...`);
-      setTimeout(() => this.attemptConnection(), delay);
-    } else {
-      this.updateState('failed', "Connection failed after maximum retries. Please check your network or API key.");
-    }
+    const delay = this.backoffDelays[this.retryCount];
+    this.retryCount++;
+    this.updateState('reconnecting', `${rawMsg}.. Retrying (${this.retryCount}/${this.maxRetries})...`);
+    setTimeout(() => this.attemptConnection(), delay);
   }
 
   private startHeartbeat() {
